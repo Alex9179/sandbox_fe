@@ -2,27 +2,15 @@
   <v-app id="inspire">
     <v-main>
       <v-toolbar id="topNav">
-        <v-icon large v-if="showBuilding" @click="showIntroSwitch"> mdi-view-dashboard </v-icon>
-        <v-icon large v-if="!showBuilding"> mdi-map </v-icon>
+        <v-icon large v-if="!showIntro" @click="returnToLanding"> mdi-view-dashboard </v-icon>
+        <v-icon large v-else> mdi-map </v-icon>
         <v-toolbar-title class="pa-4">AM Sandbox</v-toolbar-title>
       </v-toolbar>
         <div v-if="showIntro" class="ma-4">
-          <v-card-text>
-            Welcome to Alex McLeans GIS Feature samples. Here, you will find a
-            variety of examples in developing Web GIS applications. With a focus
-            on utilizing the latest GIS technologies, I have developed various
-            web mapping applications that leverage spatial data to provide
-            insights into complex spatial problems.
-          </v-card-text>
-          <v-card-text>
-            In this portfolio, you will find examples of applications that I
-            have developed using various web GIS technologies such as Mapbox,
-            Leaflet, OpenLayers, and Google Maps. Each of these applications
-            showcases my expertise in designing and developing interactive maps,
-            geospatial visualizations, and analytical tools that are essential
-            for understanding complex spatial data.
-          </v-card-text>
-        
+          <v-card-title>
+              Stuff to build...
+          </v-card-title>
+       
         <div>
           <v-row>
             <v-col cols="4">
@@ -49,11 +37,11 @@
                 class="parent-card"
               >
                 <v-card elevation="9" outlined shaped class="child-card">
-                  <v-card-title>Feature No.2</v-card-title>
+                  <v-card-title>Meet me in the Middle</v-card-title>
                   <v-card-text
-                    >Description about Feature No.2</v-card-text
+                    >Find out where to meet</v-card-text
                   >
-                  <v-btn class="ma-2" elevation="2" tile @click="showBuildingSwitch">View</v-btn>
+                  <v-btn class="ma-2" elevation="2" tile @click="showMeetinMiddle">View</v-btn>
                 </v-card>
               </v-card>
             </v-col>
@@ -64,11 +52,11 @@
                 class="parent-card"
               >
                 <v-card elevation="9" outlined shaped class="child-card">
-                  <v-card-title>Feature No.3</v-card-title>
+                  <v-card-title>AI Tool Sampler</v-card-title>
                   <v-card-text
-                    >Description about Feature No.3</v-card-text
+                    >Let's have a crack at the AI APIs</v-card-text
                   >
-                  <v-btn class="ma-2" elevation="2" tile @click="showBuildingSwitch">View</v-btn>
+                  <v-btn class="ma-2" elevation="2" tile @click="showAISampler">View</v-btn>
                 </v-card>
               </v-card>
             </v-col>
@@ -78,30 +66,53 @@
         <div v-if="showBuilding">
           <BuildingPolys></BuildingPolys>
         </div>
+        <div v-if="meetInMiddle">
+          <MeetInMiddle></MeetInMiddle>
+        </div>
+        <div v-if="AISampler">
+          <AISampler></AISampler>
+        </div>
     </v-main>
   </v-app>
 </template>
 
 <script>
 import BuildingPolys from "./components/BuildingPolys";
+import MeetInMiddle from "./components/MeetInMiddle";
+import AISampler from "./components/AISampler";
 
 export default {
   name: "App",
   components: {
     BuildingPolys,
+    MeetInMiddle,
+    AISampler,
   },
   data: () => ({
     showIntro: true,
     showBuilding: false,
+    meetInMiddle: false,
+    AISampler: false,
+    
   }),
   methods: {
     showBuildingSwitch(){
       this.showIntro = false;
       this.showBuilding = true;
     },
-    showIntroSwitch(){
+    showMeetinMiddle(){
+      this.showIntro = false;
+      this.meetInMiddle = true;
+    },
+    showAISampler(){
+      this.showIntro = false;
+      this.AISampler = true;
+    },
+    returnToLanding(){
       this.showIntro = true;
       this.showBuilding = false;
+      this.meetInMiddle = false;
+      this.AISampler = false;  
     },
   },
 };
