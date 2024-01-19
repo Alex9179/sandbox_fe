@@ -104,13 +104,11 @@ export default {
   mounted() {
   },
   methods: {
-    buttonClick() {
-      // console log out the current map centre and zoom level
-      console.log(this.$refs.mapRef.$mapPromise.then((map) => {
-        console.log(map.getCenter().lat());
-        console.log(map.getCenter().lng());
-        console.log(map.getZoom());
-      }));
+    clearLocation(personIndex) {
+      this.people[personIndex].address = "";
+      this.people[personIndex].lat = 0;
+      this.people[personIndex].lng = 0;
+      this.people[personIndex].located = false;
     },
     async locateLocation(personIndex) {
       const person = this.people[personIndex];
@@ -177,7 +175,6 @@ export default {
             // Calculate the midpoint based on journey duration
             const route = result.routes[0];
             const legs = route.legs;
-            console.log(legs);
             let totalDuration = 0;
             for (let i = 0; i < legs.length; i++) {
               totalDuration += legs[i].duration.value;
@@ -200,7 +197,7 @@ export default {
               lng: midpoint.lng(),
             };
 
-            
+
           });
         }
       });
@@ -232,25 +229,46 @@ export default {
         this.showMeetingPlaces();
       });
     },
-    showMeetingPlaces(){
-      // use Google Maps to find all eating places in the crowsCentre area
-      const service = new google.maps.places.PlacesService(this.$refs.mapRef.$mapPromise);
+    showMeetingPlaces() {
+      console.log(google.maps.places);
+      this.$refs.mapRef.$mapPromise.then((map) => {
+        const service = new google.maps.places.PlacesService(map);
 
-      service.nearbySearch(
-        {
-          location: { lat: this.crowsCentre.lat, lng: this.crowsCentre.lng },
-          radius: 10000,
-          type: ["restaurant"],
-        },
-        (results, status) => {
-          if (status === google.maps.places.PlacesServiceStatus.OK) {
-            for (let i = 0; i < results.length; i++) {
-              this.createMarker(results[i]);
+        service.nearbySearch(
+          {
+            location: { lat: this.crowsCentre.lat, lng: this.crowsCentre.lng },
+            radius: 10000,
+            type: ["restaurant"],
+          },
+          (results, status) => {
+            if (status === google.maps.places.PlacesServiceStatus.OK) {
+              for (let i = 0; i < results.length; i++) {
+                this.createMarker(results[i]);
+              }
             }
           }
-        }
-      );
-    }
+        );
+      });
+    },
+    createMarker(place) {
+      // Implement your logic to create a marker for the given place
+      // Example code:
+      this.$refs.mapRef.$mapPromise.then((map) => {
+        const marker = new google.maps.Marker({
+          position: place.geometry.location,
+          map: map,
+          title: place.name,
+        });
+
+        const infowindow = new google.maps.InfoWindow({
+          content: place.name,
+        });
+
+        marker.addListener("click", () => {
+          infowindow.open(map, marker);
+        });
+      });
+    },
   },
 };
 </script>

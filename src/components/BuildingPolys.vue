@@ -49,7 +49,7 @@ export default {
       // set up the layers
       this.$refs.mapRef.$mapPromise.then((map) => {
         // load the polys straight from the API
-        map.data.loadGeoJson("http://sandbox/api/test-polygons");
+        map.data.loadGeoJson("http://localhost:8081/api/test-polygons");
 
         map.data.setStyle(function (feature) {
           var value = feature.getProperty("value");
