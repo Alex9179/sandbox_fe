@@ -8,58 +8,39 @@
         </v-card-text>
         <v-card-actions>
           <v-card-text>
-            <h4>Where Are you?</h4>
             <v-row>
               <v-col cols="6">
-                <v-text-field id="lng" v-model="people[0].address" />
+                <h4>Where Are you?</h4>
+                <v-text-field id="lng" v-model="people[0].address" outlined />
               </v-col>
-              <v-col cols="3">
-                <v-btn @click="locateLocation(0)" width="100%">Set</v-btn>
-              </v-col>
-              <v-col cols="3">
-                <v-btn @click="clearLocation(0)" width="100%">Clear</v-btn>
+              <v-col cols="6">
+                <h4>Where Are they?</h4>
+                <v-text-field id="lng" v-model="people[1].address" outlined />
               </v-col>
             </v-row>
             <v-row>
-              <v-col cols="6">
-                <label for="lat">Latitude:</label>
-                {{ people[0].lat }}
+              <v-col cols="4">
+                <v-text-field type="number" id="radius" v-model="radius" outlined label="Radius" dense />
               </v-col>
-              <v-col cols="6">
-                <label for="lng">Longitude:</label>
-                {{ people[0].lng }}
+              <v-col cols="4">
+                <v-select v-model="travelMethod" :items="['Driving', 'Walking']" label="Travel Method" outlined
+                  dense></v-select>
               </v-col>
-            </v-row>
-          </v-card-text>
-        </v-card-actions>
-        <v-card-actions>
-          <v-card-text>
-            <h4>Where Are they?</h4>
-            <v-row>
-              <v-col cols="6">
-                <v-text-field id="lng" v-model="people[1].address" />
-              </v-col>
-              <v-col cols="3">
-                <v-btn @click="locateLocation(1)" width="100%">Set</v-btn>
-              </v-col>
-              <v-col cols="3">
-                <v-btn @click="clearLocation(1)" width="100%">Clear</v-btn>
-              </v-col>
-            </v-row>
-            <v-row>
-              <v-col cols="6">
-                <label for="lat">Latitude:</label>
-                {{ people[1].lat }}
-              </v-col>
-              <v-col cols="6">
-                <label for="lng">Longitude:</label>
-                {{ people[1].lng }}
+              <v-col cols="4">
+                <v-text-field label="Location Type" id="locationType" v-model="locationType" outlined dense />
               </v-col>
             </v-row>
           </v-card-text>
         </v-card-actions>
         <v-card-actions>
-          <v-btn @click="findMeetingPlaces()" width="100%">Meet!</v-btn>
+          <v-row>
+            <v-col cols="6">
+              <v-btn color="warning" @click="resetForm()" block width="100%">Reset</v-btn>
+            </v-col>
+            <v-col cols="6">
+              <v-btn color="success" @click="findMeetingPlaces()" block width="100%">Go!</v-btn>
+            </v-col>
+          </v-row>
         </v-card-actions>
       </v-card>
     </div>
@@ -100,19 +81,52 @@ export default {
         located: false,
       },
     ],
+    radius: 1000,
+    travelMethod: "",
+    locationType: "",
+    directionsRenderer: null,
+    resultRoute: null,
+    placesPolygon: null,
+    placesResults: null,
+    placesMarkers: [],
   }),
   mounted() {
   },
   methods: {
-    clearLocation(personIndex) {
-      this.people[personIndex].address = "";
-      this.people[personIndex].lat = 0;
-      this.people[personIndex].lng = 0;
-      this.people[personIndex].located = false;
+    resetForm() {
+      // empty the lot
+      this.radius = 1000;
+      this.travelMethod = "";
+      this.locationType = "";
+      this.zoom = 6;
+      this.center= { lat: 54.503624731909646, lng: -5.806912193676821 };
+
+      // remove the directions renderer
+      if (this.directionsRenderer) {
+        this.directionsRenderer.setMap(null);
+      }
+      
+      // remove the places markers
+      this.placesMarkers.forEach((marker) => {
+        marker.setMap(null);
+      });
+
+      // remove the polygon
+      if (this.placesPolygon) {
+        this.placesPolygon.setMap(null);
+      }
+  
+      // for each person, reset their details
+      this.people.forEach((person) => {
+        person.name = "";
+        person.address = "";
+        person.lat = 0;
+        person.lng = 0;
+        person.located = false;
+      });
     },
     async locateLocation(personIndex) {
       const person = this.people[personIndex];
-      //console.log(person);
       if (person) {
         try {
           const response = await axios.get(
@@ -127,14 +141,6 @@ export default {
             person.lng = lng;
             person.located = true;
 
-            // add a marker for this person
-            this.$refs.mapRef.$mapPromise.then((map) => {
-              new google.maps.Marker({
-                position: { lat: lat, lng: lng },
-                map: map,
-                title: person.name,
-              });
-            });
           } else {
             console.log("No results found");
           }
@@ -143,80 +149,109 @@ export default {
         }
       }
     },
-    findMeetingPlaces() {
-      // set the crowsCentre to the middle of the two people
-      this.crowsCentre.lat = (this.people[0].lat + this.people[1].lat) / 2;
-      this.crowsCentre.lng = (this.people[0].lng + this.people[1].lng) / 2;
-
-      // zoom and centre the map on the 2 people markers
+    async locateAllLocations() {
+      for (let i = 0; i < this.people.length; i++) {
+        await this.locateLocation(i);
+      }
       this.$refs.mapRef.$mapPromise.then((map) => {
         const bounds = new google.maps.LatLngBounds();
         bounds.extend({ lat: this.people[0].lat, lng: this.people[0].lng });
         bounds.extend({ lat: this.people[1].lat, lng: this.people[1].lng });
         map.fitBounds(bounds);
       });
-
-      // use Google Maps API to find the driving route between them and show that on the map
-      const directionsService = new google.maps.DirectionsService();
-
-      const request = {
-        origin: { lat: this.people[0].lat, lng: this.people[0].lng },
-        destination: { lat: this.people[1].lat, lng: this.people[1].lng },
-        travelMode: google.maps.TravelMode.DRIVING,
-      };
-
-      directionsService.route(request, (result, status) => {
-        if (status == google.maps.DirectionsStatus.OK) {
-          this.$refs.mapRef.$mapPromise.then((map) => {
-            const directionsRenderer = new google.maps.DirectionsRenderer();
-            directionsRenderer.setMap(map);
-            directionsRenderer.setDirections(result);
-
-            // Calculate the midpoint based on journey duration
-            const route = result.routes[0];
-            const legs = route.legs;
-            let totalDuration = 0;
-            for (let i = 0; i < legs.length; i++) {
-              totalDuration += legs[i].duration.value;
-            }
-            const halfwayDuration = totalDuration / 2;
-            let accumulatedDuration = 0;
-            let midpointIndex = 0;
-            for (let i = 0; i < legs.length; i++) {
-              accumulatedDuration += legs[i].duration.value;
-              if (accumulatedDuration >= halfwayDuration) {
-                midpointIndex = i;
-                break;
-              }
-            }
-            const midpoint = legs[midpointIndex].end_location;
-
-            // Set the midpoint as the crowsCentre
-            this.crowsCentre = {
-              lat: midpoint.lat(),
-              lng: midpoint.lng(),
-            };
-
-
-          });
-        }
-      });
-
-      // add a marker for the crowsCentre
-      this.$refs.mapRef.$mapPromise.then((map) => {
-        new google.maps.Marker({
-          position: { lat: this.crowsCentre.lat, lng: this.crowsCentre.lng },
-          map: map,
-          title: "Crows Centre",
-        });
-
+      console.log('Located all locations');
+    },
+    async findMeetingPlaces() {
+      try {
+        await this.locateAllLocations();
+        await this.zoomAndCentreMap();
+        await this.findRoutes();
+        await this.calculateMidpoint();
         this.showMeetingArea();
+      } catch (error) {
+        console.error("Error finding meeting places:", error);
+      }
+    },
+    async zoomAndCentreMap() {
+      return new Promise((resolve, reject) => {
+        this.$refs.mapRef.$mapPromise.then((map) => {
+          const bounds = new google.maps.LatLngBounds();
+          bounds.extend({ lat: this.people[0].lat, lng: this.people[0].lng });
+          bounds.extend({ lat: this.people[1].lat, lng: this.people[1].lng });
+          map.fitBounds(bounds);
+          resolve();
+        });
+        console.log('Zoomed and centred map');
+      });
+    },
+    async findRoutes() {
+      return new Promise((resolve, reject) => {
+        const directionsService = new google.maps.DirectionsService();
+        const request = {
+          origin: { lat: this.people[0].lat, lng: this.people[0].lng },
+          destination: { lat: this.people[1].lat, lng: this.people[1].lng },
+          travelMode: google.maps.TravelMode.DRIVING,
+        };
+        directionsService.route(request, (result, status) => {
+          if (status == google.maps.DirectionsStatus.OK) {
+            this.resultRoute = result; 
+            this.$refs.mapRef.$mapPromise.then((map) => {
+              const directionsRenderer = new google.maps.DirectionsRenderer();
+              directionsRenderer.setMap(map);
+              directionsRenderer.setDirections(result);
+              this.directionsRenderer = directionsRenderer; 
+              resolve(result);
+            });
+          } else {
+            reject(new Error("Failed to find driving route"));
+          }
+        });
+      });
+    },
+    async calculateMidpoint() {
+      return new Promise((resolve, reject) => {
+        this.$refs.mapRef.$mapPromise.then((map) => {
+          const route = this.resultRoute.routes[0];
+          const legs = route.legs;
+          let totalDuration = 0;
+          for (let i = 0; i < legs.length; i++) {
+            totalDuration += legs[i].duration.value;
+          }
+          const halfwayDuration = totalDuration / 2;
+          let accumulatedDuration = 0;
+          let midpointIndex = 0;
+          for (let i = 0; i < legs.length; i++) {
+            accumulatedDuration += legs[i].duration.value;
+            if (accumulatedDuration >= halfwayDuration) {
+              midpointIndex = i;
+              break;
+            }
+          }
+          const startLocation = legs[midpointIndex].start_location;
+          const endLocation = legs[midpointIndex].end_location;
+          const fraction = (halfwayDuration - (accumulatedDuration - legs[midpointIndex].duration.value)) / legs[midpointIndex].duration.value;
+          const midpoint = {
+            lat: startLocation.lat() + (endLocation.lat() - startLocation.lat()) * fraction,
+            lng: startLocation.lng() + (endLocation.lng() - startLocation.lng()) * fraction,
+          };
+          this.crowsCentre = midpoint;
+
+/*           // add a marker for the crows centre
+          new google.maps.Marker({
+            position: { lat: this.crowsCentre.lat, lng: this.crowsCentre.lng },
+            map: map,
+            title: "Crows Centre",
+          }); */
+
+          resolve();
+        });
+        console.log('Calculated midpoint');
       });
     },
     showMeetingArea() {
       // show a circle around the crowsCentre
       this.$refs.mapRef.$mapPromise.then((map) => {
-        new google.maps.Circle({
+        this.placesPolygon = new google.maps.Circle({
           strokeColor: "#FF0000",
           strokeOpacity: 0.8,
           strokeWeight: 1,
@@ -224,7 +259,7 @@ export default {
           fillOpacity: 0.35,
           map,
           center: { lat: this.crowsCentre.lat, lng: this.crowsCentre.lng },
-          radius: 10000,
+          radius: this.radius,
         });
         this.showMeetingPlaces();
       });
@@ -237,13 +272,16 @@ export default {
         service.nearbySearch(
           {
             location: { lat: this.crowsCentre.lat, lng: this.crowsCentre.lng },
-            radius: 10000,
-            type: ["restaurant"],
+            radius: this.radius,
+            type: [this.locationType],
           },
           (results, status) => {
             if (status === google.maps.places.PlacesServiceStatus.OK) {
+              this.placesResults = results;
+              console.log(this.placesResults); 
               for (let i = 0; i < results.length; i++) {
-                this.createMarker(results[i]);
+                const marker = this.createMarker(results[i]);
+                this.placesMarkers.push(marker);
               }
             }
           }
