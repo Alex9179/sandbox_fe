@@ -2,7 +2,6 @@
   <div>
     <div class="mapButtons" >
       <v-card>
-        <v-card-title>What Am I Looking At?</v-card-title>
         <v-card-text>
         This dataset shows Census 2021 Population Data displayed via building polygons, broken up and styled via their MSOA (Middle Layer Super Output Area)
         </v-card-text>
@@ -82,9 +81,6 @@ export default {
           };
         });
       });
-    },
-    addLayerListeners(){
-      
     },
   },
 };

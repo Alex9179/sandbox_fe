@@ -34,10 +34,11 @@
               <v-card
                 height="200"
                 id="buildingTile"
+                :style="{backgroundImage: `url(${require('@/assets/meeting.png')})`, backgroundSize: 'cover'}"
                 class="parent-card"
               >
                 <v-card elevation="9" outlined shaped class="child-card">
-                  <v-card-title>Meet me in the Middle</v-card-title>
+                  <v-card-title>Meeting Place</v-card-title>
                   <v-card-text
                     >Find out where to meet</v-card-text
                   >
@@ -49,6 +50,7 @@
               <v-card
                 height="200"
                 id="buildingTile"
+                :style="{backgroundImage: `url(${require('@/assets/robots.png')})`,}"           
                 class="parent-card"
               >
                 <v-card elevation="9" outlined shaped class="child-card">
@@ -78,7 +80,7 @@
 
 <script>
 import BuildingPolys from "./components/BuildingPolys";
-import MeetInMiddle from "./components/MeetInMiddle";
+import MeetInMiddle from "./components/MeetingPlace";
 import AISampler from "./components/AISampler";
 
 export default {
@@ -121,8 +123,6 @@ export default {
 <style scoped>
 #topNav {
   background-color: #6495ed;
-}
-#buildingTile {
 }
 .parent-card {
   display: flex;
