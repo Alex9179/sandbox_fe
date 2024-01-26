@@ -38,7 +38,7 @@
               <v-btn color="warning" @click="resetForm()" block width="100%">Reset</v-btn>
             </v-col>
             <v-col cols="6">
-              <v-btn color="success" @click="findMeetingPlaces()" block width="100%">Go!</v-btn>
+              <v-btn color="success" @click="findMeetingPlaces()" block width="100%" :disabled="!start">Go!</v-btn>
             </v-col>
           </v-row>
         </v-card-actions>
@@ -92,6 +92,15 @@ export default {
   }),
   mounted() {
   },
+  computed: {
+    start() {
+       if(this.people[0].address && this.people[1].address){
+        return true;
+       } else {
+         return false;
+       }
+    },
+  },
   methods: {
     resetForm() {
       // empty the lot
@@ -105,11 +114,13 @@ export default {
       if (this.directionsRenderer) {
         this.directionsRenderer.setMap(null);
       }
-      
+       
       // remove the places markers
       this.placesMarkers.forEach((marker) => {
         marker.setMap(null);
       });
+
+      this.placesMarkers = [];
 
       // remove the polygon
       if (this.placesPolygon) {
@@ -173,7 +184,7 @@ export default {
       }
     },
     async zoomAndCentreMap() {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         this.$refs.mapRef.$mapPromise.then((map) => {
           const bounds = new google.maps.LatLngBounds();
           bounds.extend({ lat: this.people[0].lat, lng: this.people[0].lng });
@@ -209,7 +220,7 @@ export default {
       });
     },
     async calculateMidpoint() {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         this.$refs.mapRef.$mapPromise.then((map) => {
           const route = this.resultRoute.routes[0];
           const legs = route.legs;
@@ -265,7 +276,6 @@ export default {
       });
     },
     showMeetingPlaces() {
-      console.log(google.maps.places);
       this.$refs.mapRef.$mapPromise.then((map) => {
         const service = new google.maps.places.PlacesService(map);
 
@@ -278,10 +288,8 @@ export default {
           (results, status) => {
             if (status === google.maps.places.PlacesServiceStatus.OK) {
               this.placesResults = results;
-              console.log(this.placesResults); 
               for (let i = 0; i < results.length; i++) {
-                const marker = this.createMarker(results[i]);
-                this.placesMarkers.push(marker);
+                this.createMarker(results[i]); 
               }
             }
           }
@@ -289,8 +297,6 @@ export default {
       });
     },
     createMarker(place) {
-      // Implement your logic to create a marker for the given place
-      // Example code:
       this.$refs.mapRef.$mapPromise.then((map) => {
         const marker = new google.maps.Marker({
           position: place.geometry.location,
@@ -305,6 +311,10 @@ export default {
         marker.addListener("click", () => {
           infowindow.open(map, marker);
         });
+
+        this.placesMarkers.push(marker); 
+
+        console.log(marker); 
       });
     },
   },
