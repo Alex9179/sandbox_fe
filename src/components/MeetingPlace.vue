@@ -1,49 +1,60 @@
 <template>
   <div>
-    <div class="mapOptions">
-      <v-card>
+    <v-dialog v-model="dialogVisible" max-width="60%" persistent>
+      <v-card class="mapSettings">
         <v-card-title>Meeting Place</v-card-title>
-        <v-card-text>
-          Find the perfect place to meet in the Middle
-        </v-card-text>
         <v-card-actions>
           <v-card-text>
             <v-row>
               <v-col cols="6">
-                <h4>Where Are you?</h4>
-                <v-text-field id="lng" v-model="people[0].address" outlined />
+                <v-text-field label="Where Are you?" v-model="people[0].address" outlined
+                  @change="debouncePersonLocator(0)" @keyup.enter="locateLocation(0)">
+                  <template v-slot:append>
+                    <v-icon :color="getLocatorIconColor(0)">
+                      {{ getLocatorIcon(0) }}
+                    </v-icon>
+                  </template>
+                </v-text-field>
               </v-col>
               <v-col cols="6">
-                <h4>Where Are they?</h4>
-                <v-text-field id="lng" v-model="people[1].address" outlined />
+                <v-text-field label="Where Are you?" v-model="people[1].address" outlined
+                  @change="debouncePersonLocator(1)" @keyup.enter="locateLocation(1)">
+                  <template v-slot:append>
+                    <v-icon :color="getLocatorIconColor(1)">
+                      {{ getLocatorIcon(1) }}
+                    </v-icon>
+                  </template>
+                </v-text-field>
               </v-col>
             </v-row>
-            <v-row>
-              <v-col cols="4">
-                <v-text-field type="number" id="radius" v-model="radius" outlined label="Radius" dense />
-              </v-col>
-              <v-col cols="4">
-                <v-select v-model="travelMethod" :items="['Driving', 'Walking']" label="Travel Method" outlined
-                  dense></v-select>
-              </v-col>
-              <v-col cols="4">
-                <v-select v-model="locationType" :items="locationOptions" label="Location Type" outlined dense />
-              </v-col>
-            </v-row>
+            <transition name="slide-down" mode="out-in" :duration="{ enter: 20000, leave: 20000 }">
+              <v-row v-if="bothLocated" key="transition-row" appear>
+                <v-col cols="4">
+                  <v-text-field type="number" id="radius" v-model="radius" outlined label="Radius" dense />
+                </v-col>
+                <v-col cols="4">
+                  <v-select v-model="travelMethod" :items="travelOptions" label="Travel Method" outlined dense></v-select>
+                </v-col>
+                <v-col cols="4">
+                  <v-select v-model="locationType" :items="locationOptions" label="Location Type" outlined dense />
+                </v-col>
+              </v-row>
+            </transition>
           </v-card-text>
         </v-card-actions>
-        <v-card-actions>
-          <v-row>
-            <v-col cols="6">
-              <v-btn color="warning" @click="resetForm()" block width="100%">Reset</v-btn>
-            </v-col>
-            <v-col cols="6">
-              <v-btn color="success" @click="findMeetingPlaces()" block width="100%" :disabled="!start">Go!</v-btn>
-            </v-col>
-          </v-row>
+        <v-card-actions style="display: flex; justify-content: center;">
+          <transition name="slide-down" mode="out-in" :duration="{ enter: 20000, leave: 20000 }">
+            <div v-if="start" >
+              <v-btn  color="success" @click="findMeetingPlaces()"
+                :disabled="!start">
+                <v-icon left>mdi-arrow-right</v-icon>
+                Go!
+              </v-btn>
+            </div>
+          </transition>
         </v-card-actions>
       </v-card>
-    </div>
+    </v-dialog>
     <GmapMap ref="mapRef" :center="center" :zoom="zoom" :options="mapOptions" :style="mapStyles" />
   </div>
 </template>
@@ -57,6 +68,7 @@ export default {
   data: () => ({
     zoom: 6,
     center: { lat: 54.503624731909646, lng: -5.806912193676821 },
+    dialogVisible: true,
     crowsCentre: { lat: 0, lng: 0 },
     mapOptions: {
       gestureHandling: "greedy",
@@ -68,21 +80,27 @@ export default {
     people: [
       {
         name: "You",
-        address: "24 Luther Street, Brighton",
+        address: "",
         lat: 0,
         lng: 0,
-        located: false,
+        located: 'not-located'
       },
       {
         name: "Them",
-        address: "33 Chaplin Drive, Headcorn",
+        address: "",
         lat: 0,
         lng: 0,
-        located: false,
+        located: 'not-located',
       },
     ],
     radius: 5000,
-    travelMethod: "",
+    travelMethod: "DRIVING",
+    travelOptions: [
+      { text: 'Driving', value: 'DRIVING' },
+      { text: 'Walking', value: 'WALKING' },
+      { text: 'Bicycling', value: 'BICYCLING' },
+      { text: 'Public Transport', value: 'TRANSIT' },
+    ],
     locationOptions: [
       { text: 'Theme Park', value: 'amusement_park' },
       { text: 'Aquarium', value: 'aquarium' },
@@ -113,6 +131,7 @@ export default {
       { text: 'Tourism', value: 'tourist_attraction' },
       { text: 'Zoo', value: 'zoo' }
     ],
+    locationType: "",
     directionsRenderer: null,
     resultRoute: null,
     placesPolygon: null,
@@ -122,15 +141,44 @@ export default {
   mounted() {
   },
   computed: {
-    start() {
-      if (this.people[0].address && this.people[1].address) {
+    bothLocated() {
+      if (this.people.every(person => person.located === 'found')) {
         return true;
       } else {
         return false;
       }
     },
+    start() {
+      if (this.bothLocated && this.travelMethod && this.locationType && this.radius) {
+        return true;
+      } else {
+        return false;
+      }
+    }
   },
   methods: {
+    getLocatorIconColor(personIndex) {
+      if (this.people[personIndex].located === 'not-located') {
+        return 'grey';
+      } else if (this.people[personIndex].located === 'locating') {
+        return 'orange';
+      } else if (this.people[personIndex].located === 'found') {
+        return 'green';
+      } else if (this.people[personIndex].located === 'not-found') {
+        return 'red';
+      }
+    },
+    getLocatorIcon(personIndex) {
+      if (this.people[personIndex].located === 'not-located') {
+        return 'mdi-map-marker-question';
+      } else if (this.people[personIndex].located === 'locating') {
+        return 'mdi-map-marker-question';
+      } else if (this.people[personIndex].located === 'found') {
+        return 'mdi-map-marker-check';
+      } else if (this.people[personIndex].located === 'not-found') {
+        return 'mdi-map-marker-remove';
+      }
+    },
     resetForm() {
       // empty the lot
       this.radius = 1000;
@@ -162,12 +210,18 @@ export default {
         person.address = "";
         person.lat = 0;
         person.lng = 0;
-        person.located = false;
+        person.located = 'not-located';
       });
+    },
+    debouncePersonLocator: function (personIndex) {
+      setTimeout(() => {
+        this.locateLocation(personIndex);
+      }, 1000);
     },
     async locateLocation(personIndex) {
       const person = this.people[personIndex];
       if (person) {
+        person.located = 'locating';
         try {
           const response = await axios.get(
             `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
@@ -179,9 +233,10 @@ export default {
             const { lat, lng } = results[0].geometry.location;
             person.lat = lat;
             person.lng = lng;
-            person.located = true;
+            person.located = 'found';
 
           } else {
+            person.located = 'not-found';
             console.log("No results found");
           }
         } catch (error) {
@@ -208,6 +263,7 @@ export default {
         await this.findRoutes();
         await this.calculateMidpoint();
         this.showMeetingArea();
+        this.dialogVisible = false;
       } catch (error) {
         console.error("Error finding meeting places:", error);
       }
@@ -227,10 +283,11 @@ export default {
     async findRoutes() {
       return new Promise((resolve, reject) => {
         const directionsService = new google.maps.DirectionsService();
+        console.log('Travel Method = ' + this.travelMethod);
         const request = {
           origin: { lat: this.people[0].lat, lng: this.people[0].lng },
           destination: { lat: this.people[1].lat, lng: this.people[1].lng },
-          travelMode: google.maps.TravelMode.DRIVING,
+          travelMode: this.travelMethod,
         };
         directionsService.route(request, (result, status) => {
           if (status == google.maps.DirectionsStatus.OK) {
@@ -278,11 +335,11 @@ export default {
             lat: midpoint.lat(),
             lng: midpoint.lng(),
           };
-/*           new google.maps.Marker({
-            position: { lat: this.crowsCentre.lat, lng: this.crowsCentre.lng },
-            map: map,
-            title: "Crows Centre",
-          }); */
+          /*           new google.maps.Marker({
+                      position: { lat: this.crowsCentre.lat, lng: this.crowsCentre.lng },
+                      map: map,
+                      title: "Crows Centre",
+                    }); */
           resolve();
         });
         console.log('Calculated midpoint');
@@ -350,13 +407,18 @@ export default {
 </script>
 
 <style scoped>
-.mapOptions {
-  position: absolute !important;
-  top: 200px;
-  right: 50px;
-  margin-left: 15px;
-  background-color: rgba(243, 237, 237, 0);
-  z-index: 1;
-  max-width: 30%
+.mapSettings {
+  overflow-y: hidden !important;
+}
+
+.centered {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
+
+.slide-down-enter-active {
+  animation: slide-down-enter 1.5s;
 }
 </style>
