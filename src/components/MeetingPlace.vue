@@ -27,7 +27,7 @@
                   dense></v-select>
               </v-col>
               <v-col cols="4">
-                <v-text-field label="Location Type" id="locationType" v-model="locationType" outlined dense />
+                <v-select v-model="locationType" :items="locationOptions" label="Location Type" outlined dense />
               </v-col>
             </v-row>
           </v-card-text>
@@ -75,15 +75,44 @@ export default {
       },
       {
         name: "Them",
-        address: "33 Chapling Drive, Headcorn",
+        address: "33 Chaplin Drive, Headcorn",
         lat: 0,
         lng: 0,
         located: false,
       },
     ],
-    radius: 1000,
+    radius: 5000,
     travelMethod: "",
-    locationType: "",
+    locationOptions: [
+      { text: 'Theme Park', value: 'amusement_park' },
+      { text: 'Aquarium', value: 'aquarium' },
+      { text: 'Art Gallery', value: 'art_gallery' },
+      { text: 'Bakery', value: 'bakery' },
+      { text: 'Pub/Bar', value: 'bar' },
+      { text: 'Salon', value: 'beauty_salon' },
+      { text: 'Book Shop', value: 'book_store' },
+      { text: 'Bowling Alley', value: 'bowling_alley' },
+      { text: 'Cafe', value: 'cafe' },
+      { text: 'Camping', value: 'campground' },
+      { text: 'Casino', value: 'casino' },
+      { text: 'Church', value: 'church' },
+      { text: 'Gym', value: 'gym' },
+      { text: 'Hairdresser', value: 'hair_care' },
+      { text: 'Library', value: 'library' },
+      { text: 'Accomodation', value: 'lodging' },
+      { text: 'Takeaway', value: 'meal_takeaway' },
+      { text: 'Cinema', value: 'movie_theater' },
+      { text: 'Museum', value: 'museum' },
+      { text: 'Night Club', value: 'night_club' },
+      { text: 'Park', value: 'park' },
+      { text: 'Parking', value: 'parking' },
+      { text: 'Restaurant', value: 'restaurant' },
+      { text: 'Shopping Mall', value: 'shopping_mall' },
+      { text: 'Spa', value: 'spa' },
+      { text: 'Stadium', value: 'stadium' },
+      { text: 'Tourism', value: 'tourist_attraction' },
+      { text: 'Zoo', value: 'zoo' }
+    ],
     directionsRenderer: null,
     resultRoute: null,
     placesPolygon: null,
@@ -94,11 +123,11 @@ export default {
   },
   computed: {
     start() {
-       if(this.people[0].address && this.people[1].address){
+      if (this.people[0].address && this.people[1].address) {
         return true;
-       } else {
-         return false;
-       }
+      } else {
+        return false;
+      }
     },
   },
   methods: {
@@ -108,13 +137,13 @@ export default {
       this.travelMethod = "";
       this.locationType = "";
       this.zoom = 6;
-      this.center= { lat: 54.503624731909646, lng: -5.806912193676821 };
+      this.center = { lat: 54.503624731909646, lng: -5.806912193676821 };
 
       // remove the directions renderer
       if (this.directionsRenderer) {
         this.directionsRenderer.setMap(null);
       }
-       
+
       // remove the places markers
       this.placesMarkers.forEach((marker) => {
         marker.setMap(null);
@@ -126,7 +155,7 @@ export default {
       if (this.placesPolygon) {
         this.placesPolygon.setMap(null);
       }
-  
+
       // for each person, reset their details
       this.people.forEach((person) => {
         person.name = "";
@@ -205,12 +234,12 @@ export default {
         };
         directionsService.route(request, (result, status) => {
           if (status == google.maps.DirectionsStatus.OK) {
-            this.resultRoute = result; 
+            this.resultRoute = result;
             this.$refs.mapRef.$mapPromise.then((map) => {
               const directionsRenderer = new google.maps.DirectionsRenderer();
               directionsRenderer.setMap(map);
               directionsRenderer.setDirections(result);
-              this.directionsRenderer = directionsRenderer; 
+              this.directionsRenderer = directionsRenderer;
               resolve(result);
             });
           } else {
@@ -223,37 +252,37 @@ export default {
       return new Promise((resolve) => {
         this.$refs.mapRef.$mapPromise.then((map) => {
           const route = this.resultRoute.routes[0];
-          const legs = route.legs;
           let totalDuration = 0;
-          for (let i = 0; i < legs.length; i++) {
-            totalDuration += legs[i].duration.value;
-          }
+          route.legs.forEach(leg => {
+            leg.steps.forEach(step => {
+              totalDuration += step.duration.value;
+            });
+          });
           const halfwayDuration = totalDuration / 2;
           let accumulatedDuration = 0;
-          let midpointIndex = 0;
-          for (let i = 0; i < legs.length; i++) {
-            accumulatedDuration += legs[i].duration.value;
-            if (accumulatedDuration >= halfwayDuration) {
-              midpointIndex = i;
-              break;
+          let midpoint;
+          for (const leg of route.legs) {
+            for (const step of leg.steps) {
+              accumulatedDuration += step.duration.value;
+              if (accumulatedDuration >= halfwayDuration) {
+                const fraction = (halfwayDuration - (accumulatedDuration - step.duration.value)) / step.duration.value;
+                const polyline = google.maps.geometry.encoding.decodePath(step.polyline.points);
+                const index = Math.floor(fraction * (polyline.length - 1));
+                midpoint = polyline[index];
+                break;
+              }
             }
+            if (midpoint) break;
           }
-          const startLocation = legs[midpointIndex].start_location;
-          const endLocation = legs[midpointIndex].end_location;
-          const fraction = (halfwayDuration - (accumulatedDuration - legs[midpointIndex].duration.value)) / legs[midpointIndex].duration.value;
-          const midpoint = {
-            lat: startLocation.lat() + (endLocation.lat() - startLocation.lat()) * fraction,
-            lng: startLocation.lng() + (endLocation.lng() - startLocation.lng()) * fraction,
+          this.crowsCentre = {
+            lat: midpoint.lat(),
+            lng: midpoint.lng(),
           };
-          this.crowsCentre = midpoint;
-
-/*           // add a marker for the crows centre
-          new google.maps.Marker({
+/*           new google.maps.Marker({
             position: { lat: this.crowsCentre.lat, lng: this.crowsCentre.lng },
             map: map,
             title: "Crows Centre",
           }); */
-
           resolve();
         });
         console.log('Calculated midpoint');
@@ -289,7 +318,7 @@ export default {
             if (status === google.maps.places.PlacesServiceStatus.OK) {
               this.placesResults = results;
               for (let i = 0; i < results.length; i++) {
-                this.createMarker(results[i]); 
+                this.createMarker(results[i]);
               }
             }
           }
@@ -312,9 +341,8 @@ export default {
           infowindow.open(map, marker);
         });
 
-        this.placesMarkers.push(marker); 
+        this.placesMarkers.push(marker);
 
-        console.log(marker); 
       });
     },
   },
