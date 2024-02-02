@@ -54,6 +54,27 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+    <v-card class="resultsPanel" v-if="resultPanelVisible">
+      <v-list three-line>
+        <template v-for="(item, index) in placesResults">
+          <v-subheader v-if="item.name" :key="item.name" v-text="item.name"></v-subheader>
+
+          <v-divider v-else-if="item.divider" :key="index"></v-divider>
+
+          <v-list-item v-else :key="item.name">
+            <v-list-item-avatar>
+              <v-img :src="item.photos[0].getUrl({ maxWidth: 1100 })"></v-img>
+            </v-list-item-avatar>
+
+            <v-list-item-content>
+              <v-list-item-title v-html="item.name"></v-list-item-title>
+              <v-list-item-subtitle v-html="item.vicinity"></v-list-item-subtitle>
+            </v-list-item-content>
+          </v-list-item>
+        </template>
+      </v-list>
+      <v-btn @click="resetForm()">New Search</v-btn>
+    </v-card>
     <GmapMap ref="mapRef" :center="center" :zoom="zoom" :options="mapOptions" :style="mapStyles" />
   </div>
 </template>
@@ -68,6 +89,7 @@ export default {
     zoom: 6,
     center: { lat: 54.503624731909646, lng: -5.806912193676821 },
     dialogVisible: true,
+    resultPanelVisible: false,
     crowsCentre: { lat: 0, lng: 0 },
     mapOptions: {
       gestureHandling: "greedy",
@@ -136,6 +158,7 @@ export default {
     placesPolygon: null,
     placesResults: null,
     placesMarkers: [],
+    peopleMarkers: [],
     personMarkerSVG: 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" height="25px" width="25px"><title>map-marker-check</title><path d="M12,2C15.86,2 19,5.14 19,9C19,14.25 12,22 12,22C12,22 5,14.25 5,9C5,5.14 8.14,2 12,2M10.47,14L17,7.41L15.6,6L10.47,11.18L8.4,9.09L7,10.5L10.47,14Z" fill="green" /></svg>'),
   }),
   mounted() {
@@ -199,6 +222,9 @@ export default {
 
       this.placesMarkers = [];
 
+      console.log(this.peopleMarkers);
+      this.peopleMarkers = [];
+
       // remove the polygon
       if (this.placesPolygon) {
         this.placesPolygon.setMap(null);
@@ -212,6 +238,9 @@ export default {
         person.lng = 0;
         person.located = 'not-located';
       });
+
+      this.dialogVisible = true;
+      this.resultPanelVisible = false;
     },
     debouncePersonLocator: function (personIndex) {
       setTimeout(() => {
@@ -237,15 +266,14 @@ export default {
 
             // add them to the map
             this.$refs.mapRef.$mapPromise.then((map) => {
-              new google.maps.Marker({
+             const marker =  new google.maps.Marker({
                 position: { lat: person.lat, lng: person.lng },
                 map: map,
                 title: person.name,
                 icon: this.personMarkerSVG,
               });
+              this.peopleMarkers.push(marker);
             });
-
-
           } else {
             person.located = 'not-found';
             console.log("No results found");
@@ -283,6 +311,7 @@ export default {
         // show the meeting area and the locations we've found for it
         this.showMeetingArea();
         this.dialogVisible = false;
+        this.resultPanelVisible = true;
       } catch (error) {
         console.error("Error finding meeting places:", error);
       }
@@ -363,7 +392,6 @@ export default {
           // we're done, crack on
           resolve();
         });
-        console.log('Calculated midpoint');
       });
     },
     showMeetingArea() {
@@ -397,6 +425,7 @@ export default {
           (results, status) => {
             if (status === google.maps.places.PlacesServiceStatus.OK) {
               this.placesResults = results;
+              console.log(results);
               // create a marker with each of them
               for (let i = 0; i < results.length; i++) {
                 this.createMarker(results[i]);
@@ -434,5 +463,14 @@ export default {
 <style scoped>
 .mapSettings {
   overflow-y: hidden !important;
+}
+
+.resultsPanel {
+  position: absolute !important;
+  top: 150px;
+  right: 25px;
+  margin-right: 5px;
+  z-index: 1;
+  max-width: 400px;
 }
 </style>
