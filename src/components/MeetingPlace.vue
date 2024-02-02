@@ -27,8 +27,8 @@
                 </v-text-field>
               </v-col>
             </v-row>
-            <transition name="slide-down" mode="out-in" :duration="{ enter: 20000, leave: 20000 }">
-              <v-row v-if="bothLocated" key="transition-row" appear>
+            <v-expand-transition>
+              <v-row v-if="bothLocated">
                 <v-col cols="4">
                   <v-text-field type="number" id="radius" v-model="radius" outlined label="Radius" dense />
                 </v-col>
@@ -39,19 +39,18 @@
                   <v-select v-model="locationType" :items="locationOptions" label="Location Type" outlined dense />
                 </v-col>
               </v-row>
-            </transition>
+            </v-expand-transition>
           </v-card-text>
         </v-card-actions>
         <v-card-actions style="display: flex; justify-content: center;">
-          <transition name="slide-down" mode="out-in" :duration="{ enter: 20000, leave: 20000 }">
-            <div v-if="start" >
-              <v-btn  color="success" @click="findMeetingPlaces()"
-                :disabled="!start">
+          <v-expand-transition>
+            <div v-if="start">
+              <v-btn color="success" @click="findMeetingPlaces()" :disabled="!start">
                 <v-icon left>mdi-arrow-right</v-icon>
                 Go!
               </v-btn>
             </div>
-          </transition>
+          </v-expand-transition>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -138,7 +137,7 @@ export default {
     placesResults: null,
     placesMarkers: [],
     personMarkerSVG: 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" height="25px" width="25px"><title>map-marker-check</title><path d="M12,2C15.86,2 19,5.14 19,9C19,14.25 12,22 12,22C12,22 5,14.25 5,9C5,5.14 8.14,2 12,2M10.47,14L17,7.41L15.6,6L10.47,11.18L8.4,9.09L7,10.5L10.47,14Z" fill="green" /></svg>'),
-    }),
+  }),
   mounted() {
   },
   computed: {
@@ -257,60 +256,59 @@ export default {
       }
     },
     async locateAllLocations() {
+      // run through the people and locate them if they're not already
       for (let i = 0; i < this.people.length; i++) {
-        if (this.people[i].located === 'not-located'){
+        if (this.people[i].located === 'not-located') {
           await this.locateLocation(i);
         }
       }
+
+      // zoom the map to them
       this.$refs.mapRef.$mapPromise.then((map) => {
         const bounds = new google.maps.LatLngBounds();
         bounds.extend({ lat: this.people[0].lat, lng: this.people[0].lng });
         bounds.extend({ lat: this.people[1].lat, lng: this.people[1].lng });
         map.fitBounds(bounds);
       });
-      console.log('Located all locations');
+
     },
     async findMeetingPlaces() {
       try {
+        // locate the people if they're not already
         await this.locateAllLocations();
-        await this.zoomAndCentreMap();
+        // find the routes - just take the first one for now
         await this.findRoutes();
+        // calculate the midpoint of the route
         await this.calculateMidpoint();
+        // show the meeting area and the locations we've found for it
         this.showMeetingArea();
         this.dialogVisible = false;
       } catch (error) {
         console.error("Error finding meeting places:", error);
       }
     },
-    async zoomAndCentreMap() {
-      return new Promise((resolve) => {
-        this.$refs.mapRef.$mapPromise.then((map) => {
-          const bounds = new google.maps.LatLngBounds();
-          bounds.extend({ lat: this.people[0].lat, lng: this.people[0].lng });
-          bounds.extend({ lat: this.people[1].lat, lng: this.people[1].lng });
-          map.fitBounds(bounds);
-          resolve();
-        });
-        console.log('Zoomed and centred map');
-      });
-    },
     async findRoutes() {
+      // do this in a promise, we can't find the middle until we have the route
       return new Promise((resolve, reject) => {
+        // make a nw directions service
         const directionsService = new google.maps.DirectionsService();
-        console.log('Travel Method = ' + this.travelMethod);
+        // make a request with the people and the travel method
         const request = {
           origin: { lat: this.people[0].lat, lng: this.people[0].lng },
           destination: { lat: this.people[1].lat, lng: this.people[1].lng },
           travelMode: this.travelMethod,
         };
+        // get the route
         directionsService.route(request, (result, status) => {
           if (status == google.maps.DirectionsStatus.OK) {
             this.resultRoute = result;
             this.$refs.mapRef.$mapPromise.then((map) => {
+              // get a renderer and show the route
               const directionsRenderer = new google.maps.DirectionsRenderer();
               directionsRenderer.setMap(map);
               directionsRenderer.setDirections(result);
               this.directionsRenderer = directionsRenderer;
+              // tell it we're done here
               resolve(result);
             });
           } else {
@@ -320,18 +318,24 @@ export default {
       });
     },
     async calculateMidpoint() {
+      // do it in a promise as we can't find the locations without the mid point
       return new Promise((resolve) => {
         this.$refs.mapRef.$mapPromise.then((map) => {
+          // get the route we're using
           const route = this.resultRoute.routes[0];
+          // calculate the total duration of the route, add up each leg and step
           let totalDuration = 0;
           route.legs.forEach(leg => {
             leg.steps.forEach(step => {
               totalDuration += step.duration.value;
             });
           });
+
+          // find the halfway point
           const halfwayDuration = totalDuration / 2;
           let accumulatedDuration = 0;
           let midpoint;
+          // run through the route again, adding up the duration until we reach the halfway point
           for (const leg of route.legs) {
             for (const step of leg.steps) {
               accumulatedDuration += step.duration.value;
@@ -343,8 +347,10 @@ export default {
                 break;
               }
             }
+            // if we're there, break
             if (midpoint) break;
           }
+          // note the point
           this.crowsCentre = {
             lat: midpoint.lat(),
             lng: midpoint.lng(),
@@ -354,13 +360,14 @@ export default {
                       map: map,
                       title: "Crows Centre",
                     }); */
+          // we're done, crack on
           resolve();
         });
         console.log('Calculated midpoint');
       });
     },
     showMeetingArea() {
-      // show a circle around the crowsCentre
+      // show a circle around the crowsCentre using the input radius
       this.$refs.mapRef.$mapPromise.then((map) => {
         this.placesPolygon = new google.maps.Circle({
           strokeColor: "#FF0000",
@@ -377,8 +384,10 @@ export default {
     },
     showMeetingPlaces() {
       this.$refs.mapRef.$mapPromise.then((map) => {
+        // fire up a new places service
         const service = new google.maps.places.PlacesService(map);
 
+        // do a search using our midpoint and radius
         service.nearbySearch(
           {
             location: { lat: this.crowsCentre.lat, lng: this.crowsCentre.lng },
@@ -388,6 +397,7 @@ export default {
           (results, status) => {
             if (status === google.maps.places.PlacesServiceStatus.OK) {
               this.placesResults = results;
+              // create a marker with each of them
               for (let i = 0; i < results.length; i++) {
                 this.createMarker(results[i]);
               }
@@ -397,6 +407,7 @@ export default {
       });
     },
     createMarker(place) {
+      // create a marker for the place with it's name
       this.$refs.mapRef.$mapPromise.then((map) => {
         const marker = new google.maps.Marker({
           position: place.geometry.location,
@@ -423,16 +434,5 @@ export default {
 <style scoped>
 .mapSettings {
   overflow-y: hidden !important;
-}
-
-.centered {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-}
-
-.slide-down-enter-active {
-  animation: slide-down-enter 1.5s;
 }
 </style>
